@@ -78,26 +78,70 @@ ensure_auth_key() {
 }
 
 ensure_tailscale_image() {
-  if ! docker image inspect headscale-tui-lab-tailscale:latest >/dev/null 2>&1; then
-    compose build alice-laptop
-  fi
+  # Docker reuses its cache unless the generated certificate changed.
+  compose build alice-laptop
 }
 
 wait_for_nodes() {
   local attempt
-  local online_nodes
+  local registered_nodes
   for attempt in $(seq 1 60); do
-    online_nodes=$(headscale nodes list --output json | jq '[.[]? | select(.online == true)] | length')
-    if [[ $online_nodes == 3 ]]; then
+    registered_nodes=$(headscale nodes list --output json | jq 'length')
+    if [[ $registered_nodes == 4 ]]; then
       return
     fi
     sleep 1
   done
 
-  echo "Expected three registered Tailscale clients" >&2
+  echo "Expected four registered Tailscale clients" >&2
   headscale nodes list --output json >&2
   compose logs >&2
   exit 1
+}
+
+disconnect_bob_phone() {
+  local attempt
+  local online
+
+  compose exec -T bob-phone tailscale down >/dev/null
+  for attempt in $(seq 1 30); do
+    online=$(headscale nodes list --output json | jq -r \
+      'first(.[]? | select(.name == "bob-phone") | .online) // false')
+    if [[ $online == false ]]; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Bob's phone did not disconnect from Tailscale" >&2
+  headscale nodes list --output json >&2
+  exit 1
+}
+
+node_id() {
+  local node=$1
+  headscale nodes list --output json | jq -r --arg node "$node" \
+    'first(.[]? | select(.givenName == $node or .name == $node) | .id) // empty'
+}
+
+ensure_tag() {
+  local node=$1
+  local tag=$2
+  local id
+
+  id=$(node_id "$node")
+  if [[ -z $id ]]; then
+    echo "Node $node was not found" >&2
+    exit 1
+  fi
+
+  if headscale nodes list --output json | jq -e --arg id "$id" --arg tag "$tag" \
+    'any(.[]?; (.id | tostring) == $id and ([.tags[]?] | index($tag)) != null)' \
+    >/dev/null; then
+    return
+  fi
+
+  headscale nodes tag --identifier "$id" --tags "$tag" --force --output json >/dev/null
 }
 
 up() {
@@ -109,8 +153,11 @@ up() {
   ensure_auth_key alice "$root_dir/lab/alice.env"
   ensure_auth_key bob "$root_dir/lab/bob.env"
   ensure_tailscale_image
-  compose up -d alice-laptop alice-server bob-phone
+  compose up -d alice-laptop alice-server bob-phone bob-raspberry-pi
   wait_for_nodes
+  ensure_tag alice-server tag:server
+  ensure_tag bob-raspberry-pi tag:raspberry-pi
+  disconnect_bob_phone
 }
 
 build() {

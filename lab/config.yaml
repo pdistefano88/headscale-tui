@@ -17,6 +17,10 @@ database:
   sqlite:
     path: /var/lib/headscale/db.sqlite
 
+policy:
+  mode: file
+  path: /etc/headscale/policy.hujson
+
 derp:
   urls:
     - https://controlplane.tailscale.com/derpmap/default

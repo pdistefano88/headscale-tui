@@ -11,6 +11,7 @@ services:
     volumes:
       - headscale-data:/var/lib/headscale
       - ./lab/config.yaml:/etc/headscale/config.yaml:ro
+      - ./lab/policy.hujson:/etc/headscale/policy.hujson:ro
       - ./lab/tls:/etc/headscale/tls:ro
     healthcheck:
       test: ["CMD", "headscale", "health"]
@@ -76,8 +77,27 @@ services:
     volumes:
       - bob-phone-state:/var/lib/tailscale
 
+  bob-raspberry-pi:
+    image: headscale-tui-lab-tailscale
+    depends_on:
+      headscale:
+        condition: service_healthy
+    env_file:
+      - path: ./lab/bob.env
+        required: false
+    environment:
+      TS_HOSTNAME: bob-raspberry-pi
+      TS_AUTH_ONCE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+      TS_EXTRA_ARGS: --login-server=https://headscale:8080
+    volumes:
+      - bob-raspberry-pi-state:/var/lib/tailscale
+
 volumes:
   headscale-data:
   alice-laptop-state:
   alice-server-state:
   bob-phone-state:
+  bob-raspberry-pi-state:

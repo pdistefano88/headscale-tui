@@ -1,0 +1,7 @@
+{
+  // No ACLs or grants keeps the lab's default allow-all connectivity.
+  "tagOwners": {
+    "tag:server": ["alice@"],
+    "tag:raspberry-pi": ["bob@"],
+  },
+}

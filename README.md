@@ -21,12 +21,16 @@ Headscale host.
 go run ./cmd/headscale-tui
 ```
 
-Use the arrow keys or `j` and `k` to move through the menu. `Enter` is a
-placeholder action; `q` or `Ctrl+C` exits.
+Use the arrow keys or `j` and `k` to move through the menu. Press `Enter` on
+Nodes to list devices; other menu entries are placeholders. `q` or `Ctrl+C`
+exits.
+
+In the Nodes screen, use the arrow keys or `j` and `k` to select a device.
+Press `d` to delete the selected node, then `y` to confirm or `n` to cancel.
 
 ## Development Lab
 
-The Compose lab starts Headscale `v0.29.3` and three userspace-mode Tailscale
+The Compose lab starts Headscale `v0.29.3` and four userspace-mode Tailscale
 `v1.102.3` clients:
 
 ```text
@@ -36,7 +40,13 @@ alice
 
 bob
   bob-phone
+  bob-raspberry-pi
 ```
+
+The seeded `alice-server` and `bob-raspberry-pi` nodes are assigned
+`tag:server` and `tag:raspberry-pi`, respectively. After registration,
+`bob-phone` runs `tailscale down` so it remains an offline, untagged device
+owned by Bob.
 
 Start, seed, and wait for the lab:
 

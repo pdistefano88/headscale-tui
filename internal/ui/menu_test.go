@@ -25,8 +25,7 @@ func TestMenuNavigation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			menu := NewMenu()
 			for _, key := range test.keys {
-				model, _ := menu.Update(tea.KeyPressMsg{Text: key})
-				menu = model.(Menu)
+				menu, _ = menu.Update(tea.KeyPressMsg{Text: key})
 			}
 
 			if menu.cursor != test.cursor {
@@ -40,46 +39,9 @@ func TestMenuRendersSelection(t *testing.T) {
 	t.Parallel()
 
 	menu := NewMenu()
-	model, _ := menu.Update(tea.KeyPressMsg{Text: "j"})
-	menu = model.(Menu)
+	menu, _ = menu.Update(tea.KeyPressMsg{Text: "j"})
 
-	view := menu.View()
-	if !view.AltScreen {
-		t.Fatal("menu did not request the alternate screen")
-	}
-
-	if got := view.Content; !strings.Contains(got, "> Nodes") {
+	if got := menu.View(); !strings.Contains(got, "> Nodes") {
 		t.Fatalf("menu did not render selected node item: %q", got)
-	}
-}
-
-func TestMenuLoadsNodes(t *testing.T) {
-	t.Parallel()
-
-	menu := NewMenu()
-	menu.loadNodes = func() tea.Cmd {
-		return func() tea.Msg {
-			return nodesLoadedMsg{nodes: []node{{ID: 1, Name: "alice-laptop", Online: true}}}
-		}
-	}
-
-	model, command := menu.Update(tea.KeyPressMsg{Text: "j"})
-	menu = model.(Menu)
-	model, command = menu.Update(tea.KeyPressMsg{Text: "enter"})
-	menu = model.(Menu)
-	if command == nil {
-		t.Fatal("selecting Nodes did not start a load command")
-	}
-	if menu.screen != nodesScreen || !menu.loading {
-		t.Fatalf("selecting Nodes did not show its loading screen: %+v", menu)
-	}
-
-	model, _ = menu.Update(command())
-	menu = model.(Menu)
-	if menu.loading || len(menu.nodes) != 1 {
-		t.Fatalf("node result was not applied: %+v", menu)
-	}
-	if got := menu.View().Content; !strings.Contains(got, "alice-laptop") {
-		t.Fatalf("node list was not rendered: %q", got)
 	}
 }
