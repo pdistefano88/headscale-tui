@@ -1,0 +1,83 @@
+name: headscale-tui-lab
+
+services:
+  headscale:
+    build:
+      context: .
+      dockerfile: lab/Dockerfile
+    command: serve
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - headscale-data:/var/lib/headscale
+      - ./lab/config.yaml:/etc/headscale/config.yaml:ro
+      - ./lab/tls:/etc/headscale/tls:ro
+    healthcheck:
+      test: ["CMD", "headscale", "health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+
+  alice-laptop:
+    build:
+      context: .
+      dockerfile: lab/tailscale.Dockerfile
+    image: headscale-tui-lab-tailscale
+    depends_on:
+      headscale:
+        condition: service_healthy
+    env_file:
+      - path: ./lab/alice.env
+        required: false
+    environment:
+      TS_HOSTNAME: alice-laptop
+      TS_AUTH_ONCE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+      TS_EXTRA_ARGS: --login-server=https://headscale:8080
+    volumes:
+      - alice-laptop-state:/var/lib/tailscale
+
+  alice-server:
+    image: headscale-tui-lab-tailscale
+    depends_on:
+      headscale:
+        condition: service_healthy
+    env_file:
+      - path: ./lab/alice.env
+        required: false
+    environment:
+      TS_HOSTNAME: alice-server
+      TS_AUTH_ONCE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+      TS_EXTRA_ARGS: --login-server=https://headscale:8080
+    volumes:
+      - alice-server-state:/var/lib/tailscale
+
+  bob-phone:
+    image: headscale-tui-lab-tailscale
+    depends_on:
+      headscale:
+        condition: service_healthy
+    env_file:
+      - path: ./lab/bob.env
+        required: false
+    environment:
+      TS_HOSTNAME: bob-phone
+      TS_AUTH_ONCE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_ACCEPT_DNS: "false"
+      TS_EXTRA_ARGS: --login-server=https://headscale:8080
+    volumes:
+      - bob-phone-state:/var/lib/tailscale
+
+volumes:
+  headscale-data:
+  alice-laptop-state:
+  alice-server-state:
+  bob-phone-state:

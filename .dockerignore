@@ -1,0 +1,6 @@
+.git
+.gitignore
+lab/*.env
+lab/tls/tls.key
+coverage.out
+headscale-tui
