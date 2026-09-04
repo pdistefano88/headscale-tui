@@ -28,8 +28,8 @@ func TestMenuNavigation(t *testing.T) {
 				menu, _ = menu.Update(tea.KeyPressMsg{Text: key})
 			}
 
-			if menu.cursor != test.cursor {
-				t.Fatalf("cursor = %d, want %d", menu.cursor, test.cursor)
+			if got := menu.list.Index(); got != test.cursor {
+				t.Fatalf("selected index = %d, want %d", got, test.cursor)
 			}
 		})
 	}
@@ -41,7 +41,20 @@ func TestMenuRendersSelection(t *testing.T) {
 	menu := NewMenu()
 	menu, _ = menu.Update(tea.KeyPressMsg{Text: "j"})
 
-	if got := menu.View(); !strings.Contains(got, "> Nodes") {
+	if got := menu.View(); !strings.Contains(got, "Nodes") {
 		t.Fatalf("menu did not render selected node item: %q", got)
+	}
+	if got := menu.View(); !strings.Contains(got, "API Keys") {
+		t.Fatalf("menu did not render every item: %q", got)
+	}
+}
+
+func TestMenuDoesNotQuitOnV(t *testing.T) {
+	t.Parallel()
+
+	menu := NewMenu()
+	_, command := menu.Update(tea.KeyPressMsg{Text: "v"})
+	if command != nil {
+		t.Fatal("v unexpectedly returned a command")
 	}
 }
