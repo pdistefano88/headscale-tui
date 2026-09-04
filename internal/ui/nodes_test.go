@@ -5,10 +5,9 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
-func TestNodesGroupByOwner(t *testing.T) {
+func TestNodesTableOrdersByOwner(t *testing.T) {
 	t.Parallel()
 
 	aliceNode := Node{ID: 2, Name: "alice-laptop", Online: true}
@@ -20,23 +19,26 @@ func TestNodesGroupByOwner(t *testing.T) {
 
 	nodes := NewNodes()
 	nodes.nodes = []Node{taggedNode, bobNode, aliceNode}
+	nodes.setTableRows()
 
 	view := nodes.View()
 	for _, text := range []string{
-		"alice\n  ID",
-		"bob\n  ID",
-		"Tagged devices\n  ID",
+		"ID",
+		"NAME",
+		"alice\n",
+		"\n\nbob\n",
+		"\n\nTagged devices\n",
 		"tag:server",
-		"\x1b[32m●\x1b[0m",
-		"\x1b[31m●\x1b[0m",
+		"\x1b[32m● online\x1b[0m",
+		"\x1b[31m● offline\x1b[0m",
 	} {
 		if !strings.Contains(view, text) {
-			t.Fatalf("node grouping is missing %q: %q", text, view)
+			t.Fatalf("node table is missing %q: %q", text, view)
 		}
 	}
-	if strings.Index(view, "alice\n  ID") > strings.Index(view, "bob\n  ID") ||
-		strings.Index(view, "bob\n  ID") > strings.Index(view, "Tagged devices\n  ID") {
-		t.Fatalf("node groups are not ordered by owner followed by tagged devices: %q", view)
+	if strings.Index(view, "alice-laptop") > strings.Index(view, "bob-phone") ||
+		strings.Index(view, "bob-phone") > strings.Index(view, "alice-server") {
+		t.Fatalf("node rows are not ordered by owner followed by tagged devices: %q", view)
 	}
 }
 
@@ -53,6 +55,7 @@ func TestNodeDeleteConfirmation(t *testing.T) {
 	var deletedID uint64
 	nodes := NewNodes()
 	nodes.nodes = []Node{taggedNode, bobNode, aliceNode}
+	nodes.setTableRows()
 	nodes.deleteNode = func(id uint64) tea.Cmd {
 		return func() tea.Msg {
 			deletedID = id
@@ -60,7 +63,7 @@ func TestNodeDeleteConfirmation(t *testing.T) {
 		}
 	}
 
-	nodes, _ = nodes.Update(tea.KeyPressMsg{Text: "j"})
+	nodes, _ = nodes.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	nodes, command := nodes.Update(tea.KeyPressMsg{Text: "d"})
 	if command != nil || !nodes.confirming {
 		t.Fatalf("delete did not show a confirmation: %+v", nodes)
@@ -78,17 +81,63 @@ func TestNodeDeleteConfirmation(t *testing.T) {
 	}
 }
 
-func TestNodeTableRowsHaveEqualDisplayWidths(t *testing.T) {
+func TestNodesTableUsesSelectedRow(t *testing.T) {
 	t.Parallel()
 
-	rows := strings.Split(nodeSection("alice", []Node{
+	nodes := NewNodes()
+	nodes.nodes = []Node{
 		{ID: 1, Name: "online", Online: true},
 		{ID: 2, Name: "offline", Online: false},
-	}, 1), "\n")
+	}
+	nodes.setTableRows()
+	nodes, _ = nodes.Update(tea.KeyPressMsg{Text: "j"})
 
-	for _, row := range rows[1:] {
-		if got, want := ansi.StringWidth(row), 102; got != want {
-			t.Fatalf("row width = %d, want %d: %q", got, want, row)
-		}
+	if got := nodes.tables[0].table.SelectedRow()[1]; got != "offline" {
+		t.Fatalf("selected row name = %q, want offline", got)
+	}
+	if node, ok := nodes.selectedNode(); !ok || node.ID != 2 {
+		t.Fatalf("selected node = %+v, %t; want node 2", node, ok)
+	}
+}
+
+func TestNodesTabCyclesOwnerGroups(t *testing.T) {
+	t.Parallel()
+
+	aliceNode := Node{ID: 1, Name: "alice-laptop"}
+	aliceNode.User.Name = "alice"
+	bobNode := Node{ID: 2, Name: "bob-phone"}
+	bobNode.User.Name = "bob"
+
+	nodes := NewNodes()
+	nodes.nodes = []Node{aliceNode, bobNode}
+	nodes.setTableRows()
+	nodes, _ = nodes.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+
+	if nodes.activeTable != 1 {
+		t.Fatalf("active table = %d, want 1", nodes.activeTable)
+	}
+	if node, ok := nodes.selectedNode(); !ok || node.ID != 2 {
+		t.Fatalf("selected node = %+v, %t; want node 2", node, ok)
+	}
+}
+
+func TestNodesNavigationCrossesOwnerGroups(t *testing.T) {
+	t.Parallel()
+
+	aliceNode := Node{ID: 1, Name: "alice-laptop"}
+	aliceNode.User.Name = "alice"
+	bobNode := Node{ID: 2, Name: "bob-phone"}
+	bobNode.User.Name = "bob"
+
+	nodes := NewNodes()
+	nodes.nodes = []Node{aliceNode, bobNode}
+	nodes.setTableRows()
+	nodes, _ = nodes.Update(tea.KeyPressMsg{Text: "j"})
+
+	if nodes.activeTable != 1 {
+		t.Fatalf("active table = %d, want 1", nodes.activeTable)
+	}
+	if node, ok := nodes.selectedNode(); !ok || node.ID != 2 {
+		t.Fatalf("selected node = %+v, %t; want node 2", node, ok)
 	}
 }

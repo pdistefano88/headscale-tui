@@ -10,8 +10,9 @@ import (
 	"time"
 	"unicode"
 
+	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
+	"charm.land/lipgloss/v2"
 )
 
 type Node struct {
@@ -39,23 +40,44 @@ type nodeGroup struct {
 	nodes   []Node
 }
 
-var nodeColumnWidths = [...]int{5, 23, 16, 6, 38}
+type nodeTable struct {
+	heading string
+	nodes   []Node
+	table   table.Model
+}
+
+const (
+	nodeTableHeight = 8
+	nodeTableWidth  = 101
+)
+
+var nodeColumns = []table.Column{
+	{Title: "ID", Width: 5},
+	{Title: "NAME", Width: 23},
+	{Title: "TAGS", Width: 16},
+	{Title: "STATUS", Width: 9},
+	{Title: "ADDRESSES", Width: 38},
+}
 
 // Nodes manages listing and deleting Headscale nodes.
 type Nodes struct {
-	cursor       int
 	loading      bool
 	deleting     bool
 	confirming   bool
 	nodeToDelete Node
 	nodes        []Node
+	tables       []nodeTable
+	activeTable  int
 	err          error
 	loadNodes    func() tea.Cmd
 	deleteNode   func(uint64) tea.Cmd
 }
 
 func NewNodes() Nodes {
-	return Nodes{loadNodes: listNodes, deleteNode: deleteNode}
+	return Nodes{
+		loadNodes:  listNodes,
+		deleteNode: deleteNode,
+	}
 }
 
 func (m Nodes) Load() (Nodes, tea.Cmd) {
@@ -70,7 +92,7 @@ func (m Nodes) Update(message tea.Msg) (Nodes, tea.Cmd) {
 		m.loading = false
 		m.nodes = message.nodes
 		m.err = message.err
-		m.clampCursor()
+		m.setTableRows()
 	case nodeDeletedMsg:
 		m.deleting = false
 		if message.err != nil {
@@ -80,6 +102,10 @@ func (m Nodes) Update(message tea.Msg) (Nodes, tea.Cmd) {
 
 		m.loading = true
 		return m, m.loadNodes()
+	case tea.WindowSizeMsg:
+		for index := range m.tables {
+			m.tables[index].table.SetWidth(max(nodeTableWidth, message.Width))
+		}
 	case tea.KeyPressMsg:
 		if m.confirming {
 			switch message.String() {
@@ -112,14 +138,26 @@ func (m Nodes) Update(message tea.Msg) (Nodes, tea.Cmd) {
 					m.nodeToDelete = node
 				}
 			}
+		case "tab":
+			m.selectTable(1)
+			m.syncTableStyles()
+			return m, nil
+		case "shift+tab":
+			m.selectTable(-1)
+			m.syncTableStyles()
+			return m, nil
 		case "up", "k":
-			if !m.loading && !m.deleting && m.cursor > 0 {
-				m.cursor--
-			}
+			m.moveUp()
+			return m, nil
 		case "down", "j":
-			if !m.loading && !m.deleting && m.cursor < m.nodeCount()-1 {
-				m.cursor++
-			}
+			m.moveDown()
+			return m, nil
+		}
+
+		if !m.loading && !m.deleting && len(m.tables) > 0 {
+			var command tea.Cmd
+			m.tables[m.activeTable].table, command = m.tables[m.activeTable].table.Update(message)
+			return m, command
 		}
 	}
 
@@ -147,19 +185,14 @@ func (m Nodes) View() string {
 	case len(m.nodes) == 0:
 		lines = append(lines, "No nodes found.")
 	default:
-		var sections []string
-		selectedNode, selected := m.selectedNode()
-		for _, group := range m.nodeGroups() {
-			selectedID := uint64(0)
-			if selected {
-				selectedID = selectedNode.ID
-			}
-			sections = append(sections, nodeSection(group.heading, group.nodes, selectedID))
+		sections := make([]string, 0, len(m.tables))
+		for _, nodeTable := range m.tables {
+			sections = append(sections, safeText(nodeTable.heading)+"\n"+nodeTable.table.View())
 		}
 		lines = append(lines, strings.Join(sections, "\n\n"))
 	}
 
-	lines = append(lines, "", "up/down or j/k: select  d: delete  r: refresh  b: back  q: quit")
+	lines = append(lines, "", "up/down or j/k: select  tab: switch owner  d: delete  r: refresh  b: back  q: quit")
 	return strings.Join(lines, "\n")
 }
 
@@ -192,92 +225,106 @@ func (m Nodes) nodeGroups() []nodeGroup {
 	return groups
 }
 
-func (m Nodes) nodeCount() int {
-	count := 0
-	for _, group := range m.nodeGroups() {
-		count += len(group.nodes)
-	}
-	return count
-}
-
 func (m Nodes) selectedNode() (Node, bool) {
-	index := 0
-	for _, group := range m.nodeGroups() {
-		for _, node := range group.nodes {
-			if index == m.cursor {
-				return node, true
-			}
-			index++
-		}
+	if m.activeTable < 0 || m.activeTable >= len(m.tables) {
+		return Node{}, false
+	}
+
+	group := m.tables[m.activeTable]
+	index := group.table.Cursor()
+	if index >= 0 && index < len(group.nodes) {
+		return group.nodes[index], true
 	}
 
 	return Node{}, false
 }
 
-func (m *Nodes) clampCursor() {
-	if m.cursor >= m.nodeCount() {
-		m.cursor = 0
-	}
-}
+func (m *Nodes) setTableRows() {
+	groups := m.nodeGroups()
+	m.tables = make([]nodeTable, 0, len(groups))
+	m.activeTable = 0
+	for index, group := range groups {
+		rows := make([]table.Row, 0, len(group.nodes))
+		for _, node := range group.nodes {
+			status := "\x1b[31m● offline\x1b[0m"
+			if node.Online {
+				status = "\x1b[32m● online\x1b[0m"
+			}
 
-func nodeSection(owner string, nodes []Node, selectedID uint64) string {
-	lines := []string{
-		safeText(owner),
-		"  " + nodeTableRow([]string{"ID", "NAME", "TAGS", "STATUS", "ADDRESSES"}),
-		"  " + nodeTableRule(),
-	}
-	for _, node := range nodes {
-		status := "\x1b[31m●\x1b[0m"
-		if node.Online {
-			status = "\x1b[32m●\x1b[0m"
-		}
-
-		prefix := "  "
-		if node.ID == selectedID {
-			prefix = "> "
-		}
-
-		lines = append(lines, fmt.Sprintf(
-			"%s%s",
-			prefix,
-			nodeTableRow([]string{
+			rows = append(rows, table.Row{
 				fmt.Sprint(node.ID),
-				truncate(safeText(node.Name), nodeColumnWidths[1]),
-				truncate(safeText(strings.Join(node.Tags, ", ")), nodeColumnWidths[2]),
+				safeText(node.Name),
+				safeText(strings.Join(node.Tags, ", ")),
 				status,
-				truncate(safeText(strings.Join(node.IPAddresses, ", ")), nodeColumnWidths[4]),
-			}),
-		))
-	}
+				safeText(strings.Join(node.IPAddresses, ", ")),
+			})
+		}
 
-	return strings.Join(lines, "\n")
+		m.tables = append(m.tables, nodeTable{
+			heading: group.heading,
+			nodes:   group.nodes,
+			table: table.New(
+				table.WithColumns(nodeColumns),
+				table.WithRows(rows),
+				table.WithFocused(index == 0),
+				table.WithHeight(min(nodeTableHeight, len(rows)+1)),
+				table.WithWidth(nodeTableWidth),
+			),
+		})
+	}
+	m.syncTableStyles()
 }
 
-func nodeTableRow(values []string) string {
-	cells := make([]string, len(values))
-	for index, value := range values {
-		cells[index] = padCell(value, nodeColumnWidths[index])
+func (m *Nodes) selectTable(direction int) {
+	if len(m.tables) < 2 {
+		return
 	}
 
-	return strings.Join(cells, " | ")
+	m.tables[m.activeTable].table.Blur()
+	m.activeTable = (m.activeTable + direction + len(m.tables)) % len(m.tables)
+	m.tables[m.activeTable].table.Focus()
 }
 
-func nodeTableRule() string {
-	cells := make([]string, len(nodeColumnWidths))
-	for index, width := range nodeColumnWidths {
-		cells[index] = strings.Repeat("-", width)
+func (m *Nodes) moveUp() {
+	if len(m.tables) == 0 {
+		return
 	}
 
-	return strings.Join(cells, "-+-")
+	current := &m.tables[m.activeTable].table
+	if current.Cursor() == 0 && m.activeTable > 0 {
+		m.selectTable(-1)
+		m.tables[m.activeTable].table.GotoBottom()
+	} else {
+		current.MoveUp(1)
+	}
+
+	m.syncTableStyles()
 }
 
-func padCell(value string, width int) string {
-	padding := width - ansi.StringWidth(value)
-	if padding <= 0 {
-		return value
+func (m *Nodes) moveDown() {
+	if len(m.tables) == 0 {
+		return
 	}
 
-	return value + strings.Repeat(" ", padding)
+	current := &m.tables[m.activeTable]
+	if current.table.Cursor() == len(current.nodes)-1 && m.activeTable < len(m.tables)-1 {
+		m.selectTable(1)
+		m.tables[m.activeTable].table.GotoTop()
+	} else {
+		current.table.MoveDown(1)
+	}
+
+	m.syncTableStyles()
+}
+
+func (m *Nodes) syncTableStyles() {
+	for tableIndex := range m.tables {
+		styles := table.DefaultStyles()
+		if tableIndex != m.activeTable {
+			styles.Selected = lipgloss.NewStyle()
+		}
+		m.tables[tableIndex].table.SetStyles(styles)
+	}
 }
 
 func deleteNode(id uint64) tea.Cmd {
@@ -320,12 +367,4 @@ func safeText(value string) string {
 		}
 		return character
 	}, value)
-}
-
-func truncate(value string, limit int) string {
-	if len(value) <= limit {
-		return value
-	}
-
-	return value[:limit-3] + "..."
 }
