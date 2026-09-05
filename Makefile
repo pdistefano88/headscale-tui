@@ -15,6 +15,9 @@ lab-up:
 lab-tui:
 	bash scripts/lab.sh tui
 
+lab-full: lab-reset lab-build lab-up
+	bash scripts/lab.sh tui
+
 lab-status:
 	bash scripts/lab.sh status
 

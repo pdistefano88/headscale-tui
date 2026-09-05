@@ -2,13 +2,13 @@
 
 An SSH-first terminal interface for administering a Headscale server.
 
-The aim of this UI is to help manage a headscale server instance deployed 
-on a remote server harnessing the full power of the headscale cli without 
-exposing a web UI. 
+The aim of this UI is to help manage a headscale server instance deployed
+on a remote server harnessing the full power of the headscale cli without
+exposing a web UI.
 
-The initial implementation lists nodes through the local `headscale` CLI; users
-and API keys remain placeholder menu entries. It is intended to run on the
-Headscale host.
+The TUI manages users and lists nodes through the local `headscale` CLI; API
+keys remain a placeholder menu entry. It is intended to run on the Headscale
+host.
 
 ## Requirements
 
@@ -22,8 +22,12 @@ go run ./cmd/headscale-tui
 ```
 
 Use the arrow keys or `j` and `k` to move through the menu. Press `Enter` on
-Nodes to list devices; other menu entries are placeholders. `q` or `Ctrl+C`
+Users or Nodes to open that view; API Keys is a placeholder. `q` or `Ctrl+C`
 exits.
+
+In the Users screen, use the arrow keys or `j` and `k` to select a user. Press
+`n` to enter a name and optional email and create a user, or `d` to delete the selected user.
+Users with nodes cannot be deleted until their nodes are deleted or transferred.
 
 In the Nodes screen, use the arrow keys or `j` and `k` to select a device.
 Press `d` to delete the selected node, then `y` to confirm or `n` to cancel.
@@ -65,6 +69,13 @@ Open the TUI inside the Headscale container:
 
 ```bash
 make lab-tui
+```
+
+Open the TUI inside the Headscale container after building the images and starting the
+docker compose cluster:
+
+```bash
+make lab-full
 ```
 
 Inspect the live users and nodes:
