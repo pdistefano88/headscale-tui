@@ -9,23 +9,28 @@ import (
 
 const (
 	menuScreen = iota
+	usersScreen
 	nodesScreen
 )
 
-type openNodesMsg struct{}
-type backToMenuMsg struct{}
-type quitMsg struct{}
+type (
+	openUsersMsg  struct{}
+	openNodesMsg  struct{}
+	backToMenuMsg struct{}
+	quitMsg       struct{}
+)
 
 // App owns screen routing and shared presentation state.
 type App struct {
 	width  int
 	screen int
 	menu   Menu
+	users  Users
 	nodes  Nodes
 }
 
 func NewApp() App {
-	return App{menu: NewMenu(), nodes: NewNodes()}
+	return App{menu: NewMenu(), users: NewUsers(), nodes: NewNodes()}
 }
 
 func (a App) Init() tea.Cmd {
@@ -36,6 +41,11 @@ func (a App) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
 	case tea.WindowSizeMsg:
 		a.width = message.Width
+	case openUsersMsg:
+		a.screen = usersScreen
+		var command tea.Cmd
+		a.users, command = a.users.Load()
+		return a, command
 	case openNodesMsg:
 		a.screen = nodesScreen
 		var command tea.Cmd
@@ -48,20 +58,27 @@ func (a App) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 	}
 
-	if a.screen == nodesScreen {
+	switch a.screen {
+	case usersScreen:
+		var command tea.Cmd
+		a.users, command = a.users.Update(message)
+		return a, command
+	case nodesScreen:
 		var command tea.Cmd
 		a.nodes, command = a.nodes.Update(message)
 		return a, command
+	default:
+		var command tea.Cmd
+		a.menu, command = a.menu.Update(message)
+		return a, command
 	}
-
-	var command tea.Cmd
-	a.menu, command = a.menu.Update(message)
-	return a, command
 }
 
 func (a App) View() tea.View {
 	content := a.menu.View()
-	if a.screen == nodesScreen {
+	if a.screen == usersScreen {
+		content = a.users.View()
+	} else if a.screen == nodesScreen {
 		content = a.nodes.View()
 	}
 

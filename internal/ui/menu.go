@@ -48,8 +48,13 @@ func (m Menu) Update(message tea.Msg) (Menu, tea.Cmd) {
 			return m, func() tea.Msg { return quitMsg{} }
 		case "enter":
 			item, ok := m.list.SelectedItem().(menuItem)
-			if ok && item.title == "Nodes" {
-				return m, func() tea.Msg { return openNodesMsg{} }
+			if ok {
+				switch item.title {
+				case "Users":
+					return m, func() tea.Msg { return openUsersMsg{} }
+				case "Nodes":
+					return m, func() tea.Msg { return openNodesMsg{} }
+				}
 			}
 		}
 	}

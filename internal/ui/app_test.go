@@ -41,6 +41,36 @@ func TestAppLoadsNodes(t *testing.T) {
 	}
 }
 
+func TestAppLoadsUsers(t *testing.T) {
+	t.Parallel()
+
+	app := NewApp()
+	app.users.loadUsers = func() tea.Cmd {
+		return func() tea.Msg { return usersLoadedMsg{users: []User{{ID: 1, Name: "alice"}}} }
+	}
+
+	model, command := app.Update(tea.KeyPressMsg{Text: "enter"})
+	app = model.(App)
+	if command == nil {
+		t.Fatal("selecting Users did not request navigation")
+	}
+
+	model, command = app.Update(command())
+	app = model.(App)
+	if command == nil || app.screen != usersScreen || !app.users.loading {
+		t.Fatalf("opening Users did not start loading: %+v", app)
+	}
+
+	model, _ = app.Update(command())
+	app = model.(App)
+	if app.users.loading || len(app.users.users) != 1 {
+		t.Fatalf("user result was not applied: %+v", app.users)
+	}
+	if got := app.View(); !got.AltScreen || !strings.Contains(got.Content, "alice") {
+		t.Fatalf("user list was not rendered in the alternate screen: %+v", got)
+	}
+}
+
 func TestAppReturnsToMenu(t *testing.T) {
 	t.Parallel()
 
