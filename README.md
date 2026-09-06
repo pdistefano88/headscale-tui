@@ -6,9 +6,9 @@ The aim of this UI is to help manage a headscale server instance deployed
 on a remote server harnessing the full power of the headscale cli without
 exposing a web UI.
 
-The TUI manages users and lists nodes through the local `headscale` CLI; API
-keys remain a placeholder menu entry. It is intended to run on the Headscale
-host.
+The TUI manages users, nodes, and preauth keys through the local `headscale`
+CLI; API keys remain a placeholder menu entry. It is intended to run on the
+Headscale host.
 
 ## Requirements
 
@@ -22,8 +22,8 @@ go run ./cmd/headscale-tui
 ```
 
 Use the arrow keys or `j` and `k` to move through the menu. Press `Enter` on
-Users or Nodes to open that view; API Keys is a placeholder. `q` or `Ctrl+C`
-exits.
+Users, Nodes, or Preauth Keys to open that view; API Keys is a placeholder.
+`q` or `Ctrl+C` exits.
 
 In the Users screen, use the arrow keys or `j` and `k` to select a user. Press
 `n` to enter a name and optional email and create a user, or `d` to delete the selected user.
@@ -31,6 +31,14 @@ Users with nodes cannot be deleted until their nodes are deleted or transferred.
 
 In the Nodes screen, use the arrow keys or `j` and `k` to select a device.
 Press `d` to delete the selected node, then `y` to confirm or `n` to cancel.
+
+In the Preauth Keys screen, keys are grouped by user. Press `n` to create a
+key for an existing user with Headscale's duration syntax, such as `30m`,
+`24h`, or `90d`. The default is Headscale's `1h`; `d` destroys the selected
+key. A newly created key is displayed until you press `Enter`; copy it then,
+as Headscale only reveals its full value once. Expiration timestamps include
+the TUI process timezone. Use `Tab` to reach the reusable and ephemeral
+checkboxes and `Space` to toggle them.
 
 ## Development Lab
 

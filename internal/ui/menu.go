@@ -17,6 +17,7 @@ func (i menuItem) FilterValue() string { return i.title }
 var items = []list.Item{
 	menuItem{title: "Users", description: "Manage Headscale users"},
 	menuItem{title: "Nodes", description: "List and manage devices"},
+	menuItem{title: "Preauth Keys", description: "Manage device registration keys"},
 	menuItem{title: "API Keys", description: "Manage API keys"},
 }
 
@@ -54,6 +55,8 @@ func (m Menu) Update(message tea.Msg) (Menu, tea.Cmd) {
 					return m, func() tea.Msg { return openUsersMsg{} }
 				case "Nodes":
 					return m, func() tea.Msg { return openNodesMsg{} }
+				case "Preauth Keys":
+					return m, func() tea.Msg { return openPreAuthKeysMsg{} }
 				}
 			}
 		}

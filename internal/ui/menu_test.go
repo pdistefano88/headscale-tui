@@ -18,7 +18,7 @@ func TestMenuNavigation(t *testing.T) {
 		{name: "moves down", keys: []string{"down"}, cursor: 1},
 		{name: "moves with vim keys", keys: []string{"j", "j", "k"}, cursor: 1},
 		{name: "stops at first item", keys: []string{"up", "k"}, cursor: 0},
-		{name: "stops at final item", keys: []string{"down", "down", "down"}, cursor: 2},
+		{name: "stops at final item", keys: []string{"down", "down", "down", "down"}, cursor: 3},
 	}
 
 	for _, test := range tests {
@@ -46,6 +46,9 @@ func TestMenuRendersSelection(t *testing.T) {
 	}
 	if got := menu.View(); !strings.Contains(got, "API Keys") {
 		t.Fatalf("menu did not render every item: %q", got)
+	}
+	if got := menu.View(); !strings.Contains(got, "Preauth Keys") {
+		t.Fatalf("menu did not render preauth keys: %q", got)
 	}
 }
 

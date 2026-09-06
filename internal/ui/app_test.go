@@ -71,6 +71,44 @@ func TestAppLoadsUsers(t *testing.T) {
 	}
 }
 
+func TestAppLoadsPreAuthKeys(t *testing.T) {
+	t.Parallel()
+
+	app := NewApp()
+	app.preAuthKeys.loadPreAuthKeys = func() tea.Cmd {
+		return func() tea.Msg {
+			key := PreAuthKey{ID: 1, Key: "hskey-auth-***"}
+			key.User.Name = "alice"
+			return preAuthKeysLoadedMsg{keys: []PreAuthKey{key}, users: []User{{ID: 1, Name: "alice"}}}
+		}
+	}
+
+	model, _ := app.Update(tea.KeyPressMsg{Text: "j"})
+	app = model.(App)
+	model, _ = app.Update(tea.KeyPressMsg{Text: "j"})
+	app = model.(App)
+	model, command := app.Update(tea.KeyPressMsg{Text: "enter"})
+	app = model.(App)
+	if command == nil {
+		t.Fatal("selecting Preauth Keys did not request navigation")
+	}
+
+	model, command = app.Update(command())
+	app = model.(App)
+	if command == nil || app.screen != preAuthKeysScreen || !app.preAuthKeys.loading {
+		t.Fatalf("opening Preauth Keys did not start loading: %+v", app)
+	}
+
+	model, _ = app.Update(command())
+	app = model.(App)
+	if app.preAuthKeys.loading || len(app.preAuthKeys.keys) != 1 {
+		t.Fatalf("preauth key result was not applied: %+v", app.preAuthKeys)
+	}
+	if got := app.View(); !got.AltScreen || !strings.Contains(got.Content, "hskey-auth-***") {
+		t.Fatalf("preauth key list was not rendered in the alternate screen: %+v", got)
+	}
+}
+
 func TestAppReturnsToMenu(t *testing.T) {
 	t.Parallel()
 

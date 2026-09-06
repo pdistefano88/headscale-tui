@@ -11,26 +11,29 @@ const (
 	menuScreen = iota
 	usersScreen
 	nodesScreen
+	preAuthKeysScreen
 )
 
 type (
-	openUsersMsg  struct{}
-	openNodesMsg  struct{}
-	backToMenuMsg struct{}
-	quitMsg       struct{}
+	openUsersMsg       struct{}
+	openNodesMsg       struct{}
+	openPreAuthKeysMsg struct{}
+	backToMenuMsg      struct{}
+	quitMsg            struct{}
 )
 
 // App owns screen routing and shared presentation state.
 type App struct {
-	width  int
-	screen int
-	menu   Menu
-	users  Users
-	nodes  Nodes
+	width       int
+	screen      int
+	menu        Menu
+	users       Users
+	nodes       Nodes
+	preAuthKeys PreAuthKeys
 }
 
 func NewApp() App {
-	return App{menu: NewMenu(), users: NewUsers(), nodes: NewNodes()}
+	return App{menu: NewMenu(), users: NewUsers(), nodes: NewNodes(), preAuthKeys: NewPreAuthKeys()}
 }
 
 func (a App) Init() tea.Cmd {
@@ -51,6 +54,11 @@ func (a App) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		var command tea.Cmd
 		a.nodes, command = a.nodes.Load()
 		return a, command
+	case openPreAuthKeysMsg:
+		a.screen = preAuthKeysScreen
+		var command tea.Cmd
+		a.preAuthKeys, command = a.preAuthKeys.Load()
+		return a, command
 	case backToMenuMsg:
 		a.screen = menuScreen
 		return a, nil
@@ -67,6 +75,10 @@ func (a App) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		var command tea.Cmd
 		a.nodes, command = a.nodes.Update(message)
 		return a, command
+	case preAuthKeysScreen:
+		var command tea.Cmd
+		a.preAuthKeys, command = a.preAuthKeys.Update(message)
+		return a, command
 	default:
 		var command tea.Cmd
 		a.menu, command = a.menu.Update(message)
@@ -80,6 +92,8 @@ func (a App) View() tea.View {
 		content = a.users.View()
 	} else if a.screen == nodesScreen {
 		content = a.nodes.View()
+	} else if a.screen == preAuthKeysScreen {
+		content = a.preAuthKeys.View()
 	}
 
 	if a.width > 0 {
